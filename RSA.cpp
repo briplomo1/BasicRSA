@@ -8,150 +8,148 @@
 #include <memory>
 #include <random>
 
+namespace RSAEncryption {
 
-uint64_t RSA::encrypt(const RSAKey key, const uint64_t plain) {
-   return pow_uint64(plain, key.exponent, key.n);
-}
-
-uint64_t RSA::decrypt(const RSAKey key, const uint64_t encrypted) {
-    return pow_uint64(encrypted, key.exponent, key.n);
-}
-
-uint64_t RSA::gcd(const uint64_t a, const uint64_t b) {
-    if (b == 0) {
-        return a;
+    BigInt RSA::encrypt(const RSAKey& key, const BigInt& plain) {
+        return BigInt::pow(plain, key.exponent, key.n);
     }
-    return gcd(b, a%b);
-}
 
-
-uint64_t RSA::modInverse(uint64_t a, uint64_t phi) {
-    const uint64_t m0 = phi;
-    int64_t x0 = 0, x1 = 1;
-    if (phi == 1) {
-        return 0;
+    BigInt RSA::decrypt(const RSAKey& key, const BigInt& encrypted) {
+        return BigInt::pow(encrypted, key.exponent, key.n);
     }
-    while (a > 1) {
-        uint64_t q = a / phi;
-        uint64_t t = phi;
-        phi = a % phi;
-        a = t;
-        t = x0;
-        x0 = x1- static_cast<int64_t>(q)*x0;
-        x1 = t;
+
+    BigInt RSA::gcd(const BigInt& a, const BigInt& b) {
+
+        if (b == 0) {
+            return a;
+        }
+        //std::cout << "gcd"  << a << ", " << b << std::endl;
+        return gcd(b, a%b);
     }
-    if (a != 1) {
-        std::cerr << "No inverse" << std::endl;
-        return 0;
+
+
+    BigInt RSA::modInverse(BigInt a, BigInt mod) {
+        if (mod.isZero()) throw std::invalid_argument("Modulo cannot be zero");
+
+        BigInt m0 = mod, t = 0, newt = 1;
+        BigInt r = mod, newr = a % mod;
+
+        while (!newr.isZero()) {
+            BigInt quotient = r / newr;
+
+            BigInt temp = newt;
+            newt = t - (quotient * newt);
+            t = temp;
+
+            temp = newr;
+            newr = r - (quotient * newr);
+            r = temp;
+            //std::cout << "r = " << r << " newr = " << newr << std::endl;
+            //std::cout << "t = " << t << " newt = " << newt << std::endl;
+        }
+        //std::cout << "r = " << r << " newr = " << newr << std::endl;
+        //std::cout << "t = " << t << " newt = " << newt << std::endl;
+        if (r != 1) {
+            throw std::invalid_argument("Modular inverse does not exist");
+        }
+
+        if (t < 0) {
+            t += m0;
+        }
+        //std::cout << "t = " << t << std::endl;
+
+        return t;
     }
-    uint64_t inv = x1;
-    if (x1 < 0) inv = x1+m0;
-    return inv;
-}
 
 
-std::pair<RSAKey, RSAKey> RSA::generateKeys(const uint64_t bitLength, const bool useDefaultE) {
-    if (bitLength > MAX_KEY_LENGTH) {
-        std::cerr << "Maximum key bit length is " << MAX_KEY_LENGTH << std::endl;
-        return std::make_pair(RSAKey(), RSAKey());
-    }
-    // Generate two primes p and q, as well as n and phi(n).
-    const uint64_t p = generatePrime(bitLength/2);
-    uint64_t q = 0;
-    do {
-        q = generatePrime(bitLength/2);
-    } while (q == p);
-
-    const uint64_t n = p*q;
-    const uint64_t phi = (p-1)*(q-1);
-    std::cout << "p: " << p << " q: " << q << std:: endl;
-    std::cout << "n: " << n <<  " phi: "<< phi << std::endl;
-
-    uint64_t e = DEFAULT_E;
-    if (!useDefaultE) {
+    std::pair<RSAKey, RSAKey> RSA::generateKeys(const size_t bitLength, const bool useDefaultE) {
+        if (bitLength > DEFAULT_KEY_LENGTH) {
+            std::cerr << "Maximum key bit length is " << DEFAULT_KEY_LENGTH << std::endl;
+            return std::make_pair(RSAKey(), RSAKey());
+        }
+        // Generate two primes p and q, as well as n and phi(n).
+        std::cout << "Generating prime p..." << std::endl;
+        const BigInt p = generatePrime(bitLength/2);
+        std::cout << "P: " << p << std::endl;
+        std::cout << "Generating prime q..." << std::endl;
+        BigInt q = 0;
         do {
-            e = generateNumber(2,phi-1);
-        } while (gcd(e, phi) != 1);
+            q = generatePrime(bitLength/2);
+        } while (q == p);
+        std::cout << "Q: " << q << std::endl;
+        const BigInt n = p*q;
+        const BigInt phi = (p-1)*(q-1);
+        std::cout << "N: " << n <<  "\nPhi: "<< phi << std::endl;
+        std::cout << "Generating e..." << std::endl;
+        BigInt e = DEFAULT_E;
+        if (!useDefaultE) {
+            do {
+
+                e = BigInt::random(5,phi-1);
+                //std::cout << "Gen e" << std::endl;
+            } while (gcd(e, phi) != 1);
+        }
+        std::cout << "E: " << e << std::endl;
+        std::cout << "Generating d..." << std::endl;
+        const BigInt d = modInverse(e, phi);
+        std::cout << "D: " << d << std::endl;
+        std::cout << "Public key:\n" << e << ", " << n << std::endl;
+        std::cout << "Private Key:\n" << d << ", " << n << std::endl;
+
+        // Populate keys
+        auto publicKey = RSAKey(e, n);
+        auto privateKey = RSAKey(d, n);
+
+        return std::make_pair(publicKey, privateKey);
     }
 
-    const uint64_t d = modInverse(e, phi);
-    std::cout << "Public key: " << e << ", " << n << std::endl;
-    std::cout << "Private Key: " << d << ", " << n << std::endl;
-
-    // Populate keys
-    auto publicKey = RSAKey(e, n);
-    auto privateKey = RSAKey(d, n);
-
-    return std::make_pair(publicKey, privateKey);
-}
-
-uint64_t RSA::generatePrime(const uint64_t length) {
-    const uint64_t min = pow_uint64(2,length-1);
-    const uint64_t max = pow_uint64(2, length)-1;
-
-    for (;;) {
-        if (const uint64_t potential = generateNumber(min, max); isPrime(potential)) return potential;
-    }
-}
-
-
-bool RSA::isPrime(const uint64_t number) {
-    if (number >1 && number < 4) return true;
-    const auto sqrtP = static_cast<uint64_t>(std::sqrt(number));
-    if (number % 2 == 0) return false;
-    for (uint64_t i = 3; i <= sqrtP; i+=2) {
-        if (number % i == 0) return false;
-    }
-    return true;
-}
-
-uint64_t RSA::generateNumber(const uint64_t min, const uint64_t max) {
-    std::random_device rd;
-    std::mt19937 rng(rd());
-    std::uniform_int_distribution distribution(min, max);
-    return distribution(rng);
-}
-
-uint64_t RSA::mul_uint64(__uint128_t a, uint64_t b, const uint64_t mod) {
-    if (b > UINT64_MAX || a > UINT64_MAX){
-        std::cerr << "RSA::mul_uint64: a or b are too big. Max size: " << UINT64_MAX << std::endl;
-        return 0;
-    }
-    __uint128_t result = 0;
-    a %= mod;
-    b %= mod;
-
-    while (b > 0) {
-        if (b & 1) {
-            if (result >= mod - a) {
-                result = result + a - mod;
-            } else {
-                result = result + a;
+    BigInt RSA::generatePrime(const size_t length) {
+        //std::cout << "Generating prime." << std::endl;
+        BigInt p = 0;
+        for (;;) {
+            const BigInt potential = BigInt::random(length);
+            p+=1;
+            if (isPrime(potential)){
+                std::cout << "Prime found after " << p << " tries!" << std::endl;
+                return potential;
             }
         }
-        b >>= 1;
-        if (a >= mod - a) {
-            a = a + a - mod;
-        } else {
-            a = a + a;
+    }
+
+
+    bool RSA::isPrime(const BigInt& number) {
+        // Amount of miller-rabin rounds
+        int k=5;
+        if (number == 2 || number == 3) return true;
+        if (number <= 1 || number % 2 == 0) return false;
+        BigInt d = number - 1;
+        int s = 0;
+        while (d % 2 == 0) {
+            d >>= 1;
+            s++;
         }
 
+        for (int i = 0; i < k; i++) {
+            BigInt a = BigInt::random(2, number - 2);
+            BigInt x = BigInt::pow(a, d, number);
+            if (x == 1 || x == number - 1) continue;
+
+            bool is_composite = true;
+            for (int r = 0; r < s - 1; r++) {
+                x = BigInt::pow(x, 2, number);
+                if (x == number - 1) {
+                    is_composite = false;
+                    break;
+                }
+            }
+            if (is_composite) return false;
+        }
+        return true;
     }
 
-    return result;
+
+    RSA::RSA()= default;
+
+    RSA::~RSA() = default;
+
 }
-
-uint64_t RSA::pow_uint64(uint64_t base, uint64_t exp, const uint64_t modulus) {
-    uint64_t res = 1;
-    base %= modulus;
-    while (exp > 0) {
-        if (exp & 1) res = mul_uint64(res, base, modulus);
-        base = mul_uint64(base, base, modulus);
-        exp >>= 1;
-    }
-    return res;
-}
-
-RSA::RSA()= default;
-
-RSA::~RSA() = default;
