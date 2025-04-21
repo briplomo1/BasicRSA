@@ -19,7 +19,7 @@ namespace RSAEncryption {
     };
 
     class RSA {
-        static constexpr int DEFAULT_KEY_LENGTH = 1024;
+        static constexpr int DEFAULT_KEY_LENGTH = 100;
         static constexpr int DEFAULT_E = 65537;
 
     public:

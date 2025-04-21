@@ -35,17 +35,6 @@ namespace RSAEncryption {
 
 
         // // Arithmetic with integer types
-        // BigInt& operator-=(const int& other);
-        // BigInt operator+(const int& other) const;
-        // BigInt& operator+=(const int& other);
-        // BigInt operator*(const int& other) const;
-        // BigInt& operator*=(const int& other);
-        // BigInt operator-(const int& other) const;
-        // BigInt operator/(const int& other) const;
-        // BigInt& operator/=(const int& other);
-        // BigInt operator%(const int& other) const;
-        // BigInt& operator%=(const int& other);
-
         BigInt operator+(const int64_t value) const { return *this + BigInt(value); }
         BigInt operator-(const int64_t value) const { return *this - BigInt(value); }
         BigInt operator*(const int64_t value) const { return *this * BigInt(value); }
