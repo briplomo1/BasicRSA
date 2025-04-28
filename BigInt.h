@@ -5,13 +5,17 @@
 #ifndef BIGINT_H
 #define BIGINT_H
 #include <cstdint>
+#include <mutex>
 #include <ostream>
 #include <vector>
 
 namespace RSAEncryption {
 
     class BigInt {
-
+    protected:
+        mutable std::mutex mutex;
+        std::vector<uint32_t> data; // binary digits, little-endian
+        bool is_negative;
     public:
         // Constructors
         BigInt();
@@ -19,6 +23,14 @@ namespace RSAEncryption {
         BigInt(int64_t value);
         BigInt(uint64_t value);
         BigInt(const std::string& str);
+        // Copy constructor
+        BigInt(const BigInt& other);
+        // Copy initialization
+        BigInt& operator=(const BigInt& other);
+        // Move constructor
+        BigInt(BigInt&& other) noexcept ;
+        // Move initialization
+        BigInt& operator=(BigInt&& other) noexcept ;
 
         // Arithmetic
         BigInt operator+(const BigInt& other) const;
@@ -107,9 +119,6 @@ namespace RSAEncryption {
         }
 
     private:
-        std::vector<uint32_t> data; // binary digits, little-endian
-        bool is_negative;
-
         void trim();
         static int compareAbs(const BigInt& a, const BigInt& b);
         static BigInt addAbs(const BigInt& a, const BigInt& b);

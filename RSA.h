@@ -5,10 +5,13 @@
 #ifndef RSA_H
 #define RSA_H
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include "BigInt.h"
 #include <iostream>
+#include <memory>
+#include <thread>
 
 namespace RSAEncryption {
 
@@ -19,8 +22,9 @@ namespace RSAEncryption {
     };
 
     class RSA {
-        static constexpr int DEFAULT_KEY_LENGTH = 100;
+        static constexpr int DEFAULT_KEY_LENGTH = 1024;
         static constexpr int DEFAULT_E = 65537;
+
 
     public:
 
@@ -73,9 +77,11 @@ namespace RSAEncryption {
         /**
         * Generate a prime nuber of given bit length. Will generate random numbers until a prime is verified.
         * @param length The bit length of the number to generate
-        * @return An unsigned 64 bit long prime number
+        * @param prime
+        * @param exitFlag
+        * @param tryCount
         */
-        BigInt static generatePrime(size_t length);
+        static void generatePrime(size_t length, const std::shared_ptr<BigInt>& prime, std::atomic<bool>& exitFlag, std::atomic<int>& tryCount);
 
         /**
          * Check that a given number is prime by checking that n mod X == 0 for all odd numbers x in [5, sqrt(n)].

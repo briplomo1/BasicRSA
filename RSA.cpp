@@ -7,8 +7,12 @@
 #include <complex>
 #include <memory>
 #include <random>
+#include <stop_token>
+#include <thread>
 
 namespace RSAEncryption {
+
+    std::mutex mtx;
 
     BigInt RSA::encrypt(const RSAKey& key, const BigInt& plain) {
         return BigInt::pow(plain, key.exponent, key.n);
@@ -29,6 +33,7 @@ namespace RSAEncryption {
 
 
     BigInt RSA::modInverse(BigInt a, BigInt mod) {
+        //std::cout << "modInverse" << std::endl;
         if (mod.isZero()) throw std::invalid_argument("Modulo cannot be zero");
 
         BigInt m0 = mod, t = 0, newt = 1;
@@ -36,19 +41,13 @@ namespace RSAEncryption {
 
         while (!newr.isZero()) {
             BigInt quotient = r / newr;
-
             BigInt temp = newt;
             newt = t - (quotient * newt);
             t = temp;
-
             temp = newr;
             newr = r - (quotient * newr);
             r = temp;
-            //std::cout << "r = " << r << " newr = " << newr << std::endl;
-            //std::cout << "t = " << t << " newt = " << newt << std::endl;
         }
-        //std::cout << "r = " << r << " newr = " << newr << std::endl;
-        //std::cout << "t = " << t << " newt = " << newt << std::endl;
         if (r != 1) {
             throw std::invalid_argument("Modular inverse does not exist");
         }
@@ -56,7 +55,6 @@ namespace RSAEncryption {
         if (t < 0) {
             t += m0;
         }
-        //std::cout << "t = " << t << std::endl;
 
         return t;
     }
@@ -67,18 +65,47 @@ namespace RSAEncryption {
             std::cerr << "Maximum key bit length is " << DEFAULT_KEY_LENGTH << std::endl;
             return std::make_pair(RSAKey(), RSAKey());
         }
+        const unsigned THREAD_COUNT = std::thread::hardware_concurrency();
+        std::cout << "Generating keys using " <<  THREAD_COUNT << " threads" << std::endl;
+        // Setup multithreading flag and threads
+        std::atomic<bool> exitFlag(false);
+        std::atomic<int> tryCount(0);
+        // Create threads
+        std::vector<std::thread> findPrimeThreads;
+        findPrimeThreads.reserve(THREAD_COUNT);
+
         // Generate two primes p and q, as well as n and phi(n).
         std::cout << "Generating prime p..." << std::endl;
-        const BigInt p = generatePrime(bitLength/2);
-        std::cout << "P: " << p << std::endl;
+        std::shared_ptr<BigInt> p = std::make_shared<BigInt>(0);
+        for (int i = 0; i < THREAD_COUNT; i++) {
+            findPrimeThreads.emplace_back(generatePrime, bitLength/2, p, std::ref(exitFlag), std::ref(tryCount));
+        }
+        for (int i= 0; i < THREAD_COUNT; i++) {
+            findPrimeThreads[i].join();
+        }
+        findPrimeThreads.clear();
+        // Reset flag for next prime gen
+        exitFlag.store(false);
+        tryCount.store(0);
+        std::cout << "P: " << *p << std::endl;
+
         std::cout << "Generating prime q..." << std::endl;
-        BigInt q = 0;
-        do {
-            q = generatePrime(bitLength/2);
-        } while (q == p);
-        std::cout << "Q: " << q << std::endl;
-        const BigInt n = p*q;
-        const BigInt phi = (p-1)*(q-1);
+        std::shared_ptr<BigInt> q = std::make_shared<BigInt>(0);
+        for (int i = 0; i < THREAD_COUNT; i++) {
+            findPrimeThreads.emplace_back(generatePrime, bitLength/2, q, std::ref(exitFlag),std::ref(tryCount));
+        }
+        for (int i= 0; i < THREAD_COUNT; i++) {
+            findPrimeThreads[i].join();
+        }
+        // do {
+        //
+        // } while (*q == *p);
+
+        std::cout << "Q: " << *q << std::endl;
+
+
+        const BigInt n = *p * *q;
+        const BigInt phi = (*p-1)*(*q-1);
         std::cout << "N: " << n <<  "\nPhi: "<< phi << std::endl;
         std::cout << "Generating e..." << std::endl;
         BigInt e = DEFAULT_E;
@@ -103,16 +130,21 @@ namespace RSAEncryption {
         return std::make_pair(publicKey, privateKey);
     }
 
-    BigInt RSA::generatePrime(const size_t length) {
-        //std::cout << "Generating prime." << std::endl;
-        BigInt p = 0;
-        for (;;) {
-            const BigInt potential = BigInt::random(length);
-            p+=1;
-            if (isPrime(potential)){
-                std::cout << "Prime found after " << p << " tries!" << std::endl;
-                return potential;
+    void RSA::generatePrime(const size_t length, const std::shared_ptr<BigInt>& prime, std::atomic<bool>& exitFlag, std::atomic<int>& tryCount) {
+        //std::cout << "Gen prime..." << std::endl;
+        try {
+            while (!exitFlag.load()) {
+                if (const BigInt potential = BigInt::random(length); isPrime(potential)){
+                    std::cout << "Prime found. Tries: " << tryCount << std::endl;
+                    mtx.lock();
+                    *prime = potential;
+                    mtx.unlock();
+                    exitFlag.store(true);
+                }
+                tryCount.store(++tryCount);
             }
+        } catch (const std::exception& e) {
+            std::cout <<" Error in thread: " << e.what() << std::endl;
         }
     }
 

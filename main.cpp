@@ -12,7 +12,13 @@
 using namespace RSAEncryption;
 
 int main(int argc, char* argv[]) {
+    const auto start = std::chrono::high_resolution_clock::now();
     auto [publicKey, privateKey] = RSA::generateKeys();
+    const auto end = std::chrono::high_resolution_clock::now();
+    const auto dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    const auto dur_mins = std::chrono::duration_cast<std::chrono::minutes>(end - start);
+
+    std::cout << "Keygen time in ms: " << dur_ms.count() << " ms or " << dur_mins.count() << " minutes." << std::endl;
     // Message to be encrypted
     constexpr int message = 21;
     std::cout << "Original message: " << message << std::endl;

@@ -10,8 +10,10 @@
 #include <sstream>
 
 namespace RSAEncryption {
+    // Constructors //////////////////////////////////////////////////
 
     BigInt::BigInt() : is_negative(false) {
+        std::lock_guard lock(mutex);
         //std::cout << "Construct1" << std::endl;
         data.push_back(0);
     }
@@ -19,6 +21,7 @@ namespace RSAEncryption {
     BigInt::BigInt(int value):  BigInt(static_cast<int64_t>(value)) {}
 
     BigInt::BigInt(int64_t value) : is_negative(value < 0) {
+        std::lock_guard lock(mutex);
         //std::cout << "Construct 3" << std::endl;
         uint64_t nValue = std::abs(value); // Work with absolute value for simplicity
 
@@ -34,16 +37,51 @@ namespace RSAEncryption {
     }
 
     BigInt::BigInt(uint64_t value) : is_negative(false) {
+        std::lock_guard lock(mutex);
         //std::cout << "Construct 4" << std::endl;
         while (value > 0) {
             data.push_back(value & 0xFFFFFFFF);
             value >>= 32;
         }
-
         if (data.empty()) {
             data.push_back(0); // Ensure there's at least one 32-bit chunk (for 0)
         }
     }
+
+    // Copy constructor
+    BigInt::BigInt(const BigInt& other) {
+        //std::cout << "Copy" << std::endl;
+        //std::lock_guard lock(other.mutex);
+        is_negative = other.is_negative;
+        data = other.data;
+    }
+    // Copy initialization
+    BigInt& BigInt::operator=(const BigInt& other) {
+        //std::lock(this->mutex, other.mutex);
+        is_negative = other.is_negative;
+        data = other.data;
+        //mutex.unlock();
+        //other.mutex.unlock();
+        return *this;
+    }
+    // Move constructor
+    BigInt::BigInt(BigInt&& other)  noexcept {
+        //std::lock_guard lock(other.mutex);
+        data = std::move(other.data);
+        other.data.clear();
+        is_negative = other.is_negative;
+    }
+    // Move initialization
+    BigInt& BigInt::operator=(BigInt&& other)  noexcept {
+        //std::unique_lock lock(mutex), other_lock(other.mutex);
+        //std::lock(lock, other_lock);
+        data = std::move(other.data);
+        other.data.clear();
+        is_negative = other.is_negative;
+        return *this;
+    }
+
+    //////////////////////////////////////////////////////////////
 
     BigInt::operator bool() const {
         return !isZero();  // Return true if the number is non-zero, false if it's zero
